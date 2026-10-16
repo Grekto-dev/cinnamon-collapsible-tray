@@ -143,7 +143,7 @@ class XAppStatusIcon {
         this.rawTooltipText = "";
 
         this.actor = new St.BoxLayout({
-            style_class: "applet-box win11-tray-item win11-tray-panel-item",
+            style_class: "win11-tray-item win11-tray-panel-item",
             reactive: !global.settings.get_boolean('panel-edit-mode'),
             track_hover: true,
             x_expand: false,
@@ -162,7 +162,6 @@ class XAppStatusIcon {
         });
 
         this.actor.add_actor(this.icon_holder);
-        this.actor.add_actor(this.label);
 
         this._tooltip = new Tooltips.PanelItemTooltip(this, "", applet.orientation);
 
@@ -189,26 +188,36 @@ class XAppStatusIcon {
             statusIcon: this,
             _statusIcon: this,
             getDragActor: () => {
-                let clone = new Clutter.Clone({ source: this.actor });
-                clone.width = this.actor.width;
-                clone.height = this.actor.height;
-                clone.opacity = 220;
+                let clone = new Clutter.Clone({ source: this.icon_holder });
+                clone.width = this.icon_holder.width;
+                clone.height = this.icon_holder.height;
+                clone.opacity = 240;
                 return clone;
             },
             getDragActorSource: () => {
-                return this.actor;
+                return this.icon_holder;
             },
             handleDragOver: (source, actor, x, y, time) => {
                 let dragged = source && (source.statusIcon || source._statusIcon);
                 if (dragged && dragged !== this) {
+                    let [tW, tH] = this.actor.get_size();
+                    let isAfter = (x > tW / 2);
+                    this.applet.showIndicator(this.actor, isAfter);
                     return DND.DragMotionResult.MOVE_DROP;
                 }
+                this.applet.hideIndicator();
                 return DND.DragMotionResult.NO_DROP;
             },
+            handleDragOut: () => {
+                this.applet.hideIndicator();
+            },
             acceptDrop: (source, actor, x, y, time) => {
+                this.applet.hideIndicator();
                 let dragged = source && (source.statusIcon || source._statusIcon);
                 if (dragged && dragged !== this) {
-                    this.applet.handleIconDropOnIcon(dragged, this);
+                    let [tW, tH] = this.actor.get_size();
+                    let isAfter = (x > tW / 2);
+                    this.applet.handleIconDropOnIcon(dragged, this, isAfter);
                     return true;
                 }
                 return false;
@@ -217,7 +226,7 @@ class XAppStatusIcon {
 
         this._draggable.connect('drag-begin', () => {
             this._isDragging = true;
-            this.actor.opacity = 100;
+            this.actor.opacity = 80;
             this._tooltip.hide();
             this._tooltip.preventShow = true;
         });
@@ -225,12 +234,14 @@ class XAppStatusIcon {
             this._isDragging = false;
             this.actor.opacity = 255;
             this._tooltip.preventShow = false;
+            this.applet.hideIndicator();
             this.applet.sortIcons();
         });
         this._draggable.connect('drag-end', () => {
             this._isDragging = false;
             this.actor.opacity = 255;
             this._tooltip.preventShow = false;
+            this.applet.hideIndicator();
         });
     }
 
@@ -240,13 +251,17 @@ class XAppStatusIcon {
 
         if (this.isInPopup) {
             this.actor.remove_style_class_name("win11-tray-panel-item");
-            this.actor.remove_style_class_name("applet-box");
             this.actor.add_style_class_name("win11-tray-popup-item");
+            if (this.actor.contains(this.label)) {
+                this.actor.remove_actor(this.label);
+            }
             this.label.visible = false;
         } else {
             this.actor.remove_style_class_name("win11-tray-popup-item");
-            this.actor.add_style_class_name("applet-box");
             this.actor.add_style_class_name("win11-tray-panel-item");
+            if (this.show_label && !this.actor.contains(this.label)) {
+                this.actor.add_actor(this.label);
+            }
             this.label.visible = this.show_label;
         }
 
@@ -374,9 +389,19 @@ class XAppStatusIcon {
 
         this.show_label = !this.isInPopup &&
                           (this.applet.orientation == St.Side.TOP || this.applet.orientation == St.Side.BOTTOM) &&
-                          this.proxy.label && this.proxy.label.length > 0;
+                          this.proxy.label && this.proxy.label.trim().length > 0;
 
-        this.label.visible = this.show_label;
+        if (this.show_label) {
+            if (!this.actor.contains(this.label)) {
+                this.actor.add_actor(this.label);
+            }
+            this.label.show();
+        } else {
+            if (this.actor.contains(this.label)) {
+                this.actor.remove_actor(this.label);
+            }
+            this.label.hide();
+        }
     }
 
     setVisible(visible) {
@@ -551,7 +576,11 @@ class Win11TrayMenu extends Applet.AppletPopupMenu {
                 if (dragged) return DND.DragMotionResult.MOVE_DROP;
                 return DND.DragMotionResult.NO_DROP;
             },
+            handleDragOut: () => {
+                this.applet.hideIndicator();
+            },
             acceptDrop: (source, actor, x, y, time) => {
+                this.applet.hideIndicator();
                 let dragged = source && (source.statusIcon || source._statusIcon);
                 if (dragged) {
                     this.applet.unpinIcon(dragged);
@@ -646,6 +675,7 @@ class Win11TrayApplet extends Applet.Applet {
             handleDragOver: (source, actor, x, y, time) => {
                 let dragged = source && (source.statusIcon || source._statusIcon);
                 if (dragged) {
+                    this.hideIndicator();
                     if (!this.menu.isOpen && chevronHoverTimer === 0) {
                         chevronHoverTimer = Mainloop.timeout_add(300, () => {
                             chevronHoverTimer = 0;
@@ -664,12 +694,14 @@ class Win11TrayApplet extends Applet.Applet {
                     Mainloop.source_remove(chevronHoverTimer);
                     chevronHoverTimer = 0;
                 }
+                this.hideIndicator();
             },
             acceptDrop: (source, actor, x, y, time) => {
                 if (chevronHoverTimer > 0) {
                     Mainloop.source_remove(chevronHoverTimer);
                     chevronHoverTimer = 0;
                 }
+                this.hideIndicator();
                 let dragged = source && (source.statusIcon || source._statusIcon);
                 if (dragged) {
                     this.unpinIcon(dragged);
@@ -689,10 +721,21 @@ class Win11TrayApplet extends Applet.Applet {
         let panelDropDelegate = {
             handleDragOver: (source, actor, x, y, time) => {
                 let dragged = source && (source.statusIcon || source._statusIcon);
-                if (dragged) return DND.DragMotionResult.MOVE_DROP;
+                if (dragged) {
+                    let children = this.pinnedIconsBox.get_children();
+                    if (children.length > 0) {
+                        let lastChild = children[children.length - 1];
+                        this.showIndicator(lastChild, true);
+                    }
+                    return DND.DragMotionResult.MOVE_DROP;
+                }
                 return DND.DragMotionResult.NO_DROP;
             },
+            handleDragOut: () => {
+                this.hideIndicator();
+            },
             acceptDrop: (source, actor, x, y, time) => {
+                this.hideIndicator();
                 let dragged = source && (source.statusIcon || source._statusIcon);
                 if (dragged) {
                     this.pinIcon(dragged);
@@ -874,7 +917,45 @@ class Win11TrayApplet extends Applet.Applet {
         this.sortIcons();
     }
 
-    handleIconDropOnIcon(draggedIcon, targetIcon) {
+    showIndicator(targetActor, isAfter = false) {
+        if (!targetActor || targetActor.is_finalized() || !targetActor.get_stage()) {
+            this.hideIndicator();
+            return;
+        }
+
+        if (!this.indicatorBar) {
+            this.indicatorBar = new St.Bin({
+                style_class: 'win11-tray-drop-indicator',
+                reactive: false
+            });
+            Main.uiGroup.add_actor(this.indicatorBar);
+        }
+
+        let [tX, tY] = targetActor.get_transformed_position();
+        let [tW, tH] = targetActor.get_transformed_size();
+
+        let barW = Math.max(2, Math.round(2 * global.ui_scale));
+        let barH = Math.min(18 * global.ui_scale, tH - 4);
+        if (barH < 14 * global.ui_scale) {
+            barH = 16 * global.ui_scale;
+        }
+
+        let barX = isAfter ? Math.round(tX + tW - barW / 2) : Math.round(tX - barW / 2);
+        let barY = Math.round(tY + (tH - barH) / 2);
+
+        this.indicatorBar.set_size(barW, barH);
+        this.indicatorBar.set_position(barX, barY);
+        this.indicatorBar.show();
+        this.indicatorBar.raise_top();
+    }
+
+    hideIndicator() {
+        if (this.indicatorBar) {
+            this.indicatorBar.hide();
+        }
+    }
+
+    handleIconDropOnIcon(draggedIcon, targetIcon, isAfter = false) {
         if (!draggedIcon || !targetIcon || draggedIcon === targetIcon) return;
 
         let draggedId = getIconIdentifier(draggedIcon.proxy);
@@ -888,7 +969,8 @@ class Win11TrayApplet extends Applet.Applet {
             let pinnedList = this.pinnedIconsList.filter(id => id !== draggedId);
             let targetIdx = pinnedList.indexOf(targetId);
             if (targetIdx !== -1) {
-                pinnedList.splice(targetIdx, 0, draggedId);
+                let insertIdx = isAfter ? targetIdx + 1 : targetIdx;
+                pinnedList.splice(insertIdx, 0, draggedId);
             } else {
                 pinnedList.push(draggedId);
             }
@@ -909,7 +991,8 @@ class Win11TrayApplet extends Applet.Applet {
             let unpinnedList = this.unpinnedOrderList.filter(id => id !== draggedId);
             let targetIdx = unpinnedList.indexOf(targetId);
             if (targetIdx !== -1) {
-                unpinnedList.splice(targetIdx, 0, draggedId);
+                let insertIdx = isAfter ? targetIdx + 1 : targetIdx;
+                unpinnedList.splice(insertIdx, 0, draggedId);
             } else {
                 unpinnedList.push(draggedId);
             }
@@ -1238,6 +1321,12 @@ class Win11TrayApplet extends Applet.Applet {
         this._recording_indicator = null;
         this.monitor = null;
         this.menu.destroy();
+
+        this.hideIndicator();
+        if (this.indicatorBar) {
+            this.indicatorBar.destroy();
+            this.indicatorBar = null;
+        }
     }
 }
 

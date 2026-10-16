@@ -12,8 +12,8 @@
 
 /* Panel Chevron Button */
 .win11-tray-chevron {
-    padding: 0 6px;
-    margin: 0 1px;
+    padding: 0 4px !important;
+    margin: 0 1px !important;
     border-radius: 4px;
     transition-duration: 120ms;
 }
@@ -34,12 +34,18 @@
 
 /* Pinned Items on Taskbar Panel */
 .win11-tray-panel-box {
-    spacing: 1px;
+    spacing: 1px !important;
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
 .win11-tray-panel-item {
-    padding: 0 4px;
-    margin: 0;
+    padding-left: 1px !important;
+    padding-right: 2px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin: 0 1px !important;
+    spacing: 0 !important;
     border-radius: 4px;
     transition-duration: 120ms;
 }
@@ -120,4 +126,11 @@
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 6px;
     padding: 4px;
+}
+
+/* Windows 11 Drop Indicator Bar */
+.win11-tray-drop-indicator {
+    background-color: #ffffff !important;
+    border-radius: 1px !important;
+    box-shadow: 0 0 3px rgba(255, 255, 255, 0.8) !important;
 }
