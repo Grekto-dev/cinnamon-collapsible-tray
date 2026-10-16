@@ -599,8 +599,21 @@ class Win11TrayApplet extends Applet.Applet {
         this.menu = new Win11TrayMenu(this, this.orientation);
         this.menuManager.addMenu(this.menu);
 
+        this.chevronButton.connect('button-press-event', (actor, event) => {
+            if (event.get_button() === Clutter.BUTTON_PRIMARY) {
+                this.menu.toggle();
+                return Clutter.EVENT_STOP;
+            } else if (event.get_button() === Clutter.BUTTON_SECONDARY) {
+                this._applet_context_menu.toggle();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
         this.chevronButton.connect('clicked', () => {
-            this.menu.toggle();
+            if (!this.menu.isOpen) {
+                this.menu.toggle();
+            }
         });
 
         this.menu.connect('open-state-changed', (menu, isOpen) => {
