@@ -492,12 +492,7 @@ class XAppStatusIcon {
 
         if (button === Clutter.BUTTON_SECONDARY) {
             let [x, y, o] = this.getEventPositionInfo(actor);
-            if (this.isInPopup) {
-                this.applet.menu.close();
-                this.proxy.call_button_press(x, y, button, event.get_time(), o, null, null);
-                this.proxy.call_button_release(x, y, button, event.get_time(), o, null, null);
-                return Clutter.EVENT_STOP;
-            }
+            this.applet.onIconRightClicked(this);
             this.proxy.call_button_press(x, y, button, event.get_time(), o, null, null);
             return Clutter.EVENT_STOP;
         }
@@ -514,10 +509,6 @@ class XAppStatusIcon {
         // If drag was in progress, DND already handled the action
         if (this._isDragging || DND.isDragging()) {
             this._pressInfo = null;
-            return Clutter.EVENT_STOP;
-        }
-
-        if (button === Clutter.BUTTON_SECONDARY && this.isInPopup) {
             return Clutter.EVENT_STOP;
         }
 
@@ -786,9 +777,14 @@ class Win11TrayApplet extends Applet.Applet {
         this.mainContainer.add_actor(this._recording_indicator.actor);
 
         // Popup Menu Setup
-        this.menuManager = new PopupMenu.PopupMenuManager(this);
+        this.menuManager = new PopupMenu.PopupMenuManager(this, false);
         this.menu = new Win11TrayMenu(this, this.orientation);
         this.menuManager.addMenu(this.menu);
+
+        this._stageEventId = 0;
+        this._focusWindowId = 0;
+        this._contextPropId = 0;
+        this._activeContextIcon = null;
 
         this.chevronButton.connect('button-press-event', (actor, event) => {
             if (event.get_button() === Clutter.BUTTON_PRIMARY) {
@@ -886,10 +882,12 @@ class Win11TrayApplet extends Applet.Applet {
             this.chevronButton.add_style_class_name('active');
             this._chevronTooltip.set_text(_("Ocultar ícones"));
             this._relayoutPopupGrid();
+            this._setupOutsideClickHandler();
         } else {
             this.chevronButton.remove_style_pseudo_class('active');
             this.chevronButton.remove_style_class_name('active');
             this._chevronTooltip.set_text(_("Mostrar ícones ocultos"));
+            this._removeOutsideClickHandler();
         }
     }
 
@@ -911,6 +909,100 @@ class Win11TrayApplet extends Applet.Applet {
                 break;
         }
         this.chevronIcon.set_icon_name(iconName);
+    }
+
+    onIconRightClicked(icon) {
+        if (!icon || !icon.isInPopup) return;
+
+        if (this._contextPropId > 0 && this._activeContextIcon && this._activeContextIcon.proxy) {
+            try {
+                this._activeContextIcon.proxy.disconnect(this._contextPropId);
+            } catch (e) {}
+            this._contextPropId = 0;
+            this._activeContextIcon = null;
+        }
+
+        this._activeContextIcon = icon;
+        this._contextPropId = icon.proxy.connect('g-properties-changed', (proxy, changed) => {
+            let props = changed.deep_unpack();
+            if ('SecondaryMenuIsOpen' in props) {
+                if (!proxy.secondary_menu_is_open) {
+                    if (this._contextPropId > 0 && this._activeContextIcon) {
+                        try {
+                            this._activeContextIcon.proxy.disconnect(this._contextPropId);
+                        } catch (e) {}
+                        this._contextPropId = 0;
+                        this._activeContextIcon = null;
+                    }
+                    Mainloop.timeout_add(150, () => {
+                        if (this.menu && this.menu.isOpen) {
+                            this.menu.close();
+                        }
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }
+            }
+        });
+    }
+
+    _setupOutsideClickHandler() {
+        this._removeOutsideClickHandler();
+
+        let initialFocus = global.display.focus_window;
+
+        this._stageEventId = global.stage.connect('captured-event', (actor, event) => {
+            let type = event.type();
+            if (type === Clutter.EventType.BUTTON_PRESS) {
+                let target = event.get_source();
+                if (this.menu && this.menu.isOpen) {
+                    if (this.menu.actor.contains(target) || this.chevronButton.contains(target)) {
+                        return Clutter.EVENT_PROPAGATE;
+                    }
+                    this.menu.close();
+                }
+            } else if (type === Clutter.EventType.KEY_PRESS) {
+                if (event.get_key_symbol() === Clutter.KEY_Escape) {
+                    if (this.menu && this.menu.isOpen) {
+                        this.menu.close();
+                    }
+                    return Clutter.EVENT_STOP;
+                }
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        this._focusWindowId = global.display.connect('notify::focus-window', () => {
+            let currentFocus = global.display.focus_window;
+            if (currentFocus && currentFocus !== initialFocus) {
+                if (this.menu && this.menu.isOpen) {
+                    this.menu.close();
+                }
+            }
+        });
+    }
+
+    _removeOutsideClickHandler() {
+        if (this._contextPropId > 0 && this._activeContextIcon && this._activeContextIcon.proxy) {
+            try {
+                this._activeContextIcon.proxy.disconnect(this._contextPropId);
+            } catch (e) {}
+            this._contextPropId = 0;
+            this._activeContextIcon = null;
+        }
+
+        if (this._stageEventId > 0) {
+            try {
+                global.stage.disconnect(this._stageEventId);
+            } catch (e) {}
+            this._stageEventId = 0;
+        }
+
+        if (this._focusWindowId > 0) {
+            try {
+                global.display.disconnect(this._focusWindowId);
+            } catch (e) {}
+            this._focusWindowId = 0;
+        }
     }
 
     isIconPinned(icon) {
@@ -1415,6 +1507,8 @@ class Win11TrayApplet extends Applet.Applet {
             this.indicatorBar.destroy();
             this.indicatorBar = null;
         }
+
+        this._removeOutsideClickHandler();
     }
 }
 
