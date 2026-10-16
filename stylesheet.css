@@ -7,12 +7,12 @@
 .win11-tray-main-container {
     padding: 0;
     margin: 0;
-    spacing: 2px;
+    spacing: 1px;
 }
 
 /* Panel Chevron Button */
 .win11-tray-chevron {
-    padding: 0 7px;
+    padding: 0 6px;
     margin: 0 1px;
     border-radius: 4px;
     transition-duration: 120ms;
@@ -34,7 +34,7 @@
 
 /* Pinned Items on Taskbar Panel */
 .win11-tray-panel-box {
-    spacing: 2px;
+    spacing: 1px;
 }
 
 .win11-tray-panel-item {
@@ -49,37 +49,55 @@
 }
 
 /* Windows 11 Overflow Popup Container */
+.menu.win11-tray-popup,
 .win11-tray-popup {
-    background-color: rgba(32, 32, 35, 0.94);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.50);
-    padding: 10px 12px;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-width: 0 !important;
+}
+
+.menu.win11-tray-popup .popup-menu-content,
+.win11-tray-popup .popup-menu-content {
+    background-color: rgba(32, 32, 35, 0.96) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.50) !important;
+    padding: 4px 6px !important;
+    margin: 0 !important;
 }
 
 .win11-tray-popup-content {
-    spacing: 4px;
+    spacing: 3px;
     padding: 0;
     margin: 0;
 }
 
 /* Grid Layout */
 .win11-tray-grid {
-    spacing: 4px;
+    spacing: 3px;
+    padding: 0;
+    margin: 0;
 }
 
 .win11-tray-row {
-    spacing: 4px;
+    spacing: 3px;
+    padding: 0;
+    margin: 0;
 }
 
 /* Grid Icon Cells */
 .win11-tray-popup-item {
-    min-width: 38px;
-    max-width: 38px;
-    min-height: 38px;
-    max-height: 38px;
-    border-radius: 6px;
-    transition-duration: 120ms;
+    min-width: 32px;
+    max-width: 32px;
+    min-height: 32px;
+    max-height: 32px;
+    padding: 0;
+    margin: 0;
+    border-radius: 4px;
+    transition-duration: 100ms;
 }
 
 .win11-tray-popup-item:hover {
@@ -87,12 +105,19 @@
 }
 
 .win11-tray-popup-item:active {
-    background-color: rgba(255, 255, 255, 0.16);
+    background-color: rgba(255, 255, 255, 0.18);
 }
 
 .win11-tray-empty {
-    font-size: 9pt;
+    font-size: 8.5pt;
     color: rgba(255, 255, 255, 0.6);
-    padding: 14px 20px;
+    padding: 8px 12px;
     text-align: center;
+}
+
+.win11-tray-drag-actor {
+    background-color: rgba(40, 40, 45, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 4px;
 }

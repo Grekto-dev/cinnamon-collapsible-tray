@@ -60,5 +60,9 @@
     "pinned-icons": {
         "type": "generic",
         "default": []
+    },
+    "unpinned-order": {
+        "type": "generic",
+        "default": []
     }
 }

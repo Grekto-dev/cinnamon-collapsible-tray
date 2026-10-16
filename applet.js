@@ -178,17 +178,59 @@ class XAppStatusIcon {
     }
 
     _setupDnd() {
+        this._isDragging = false;
         this._draggable = DND.makeDraggable(this.actor, {
             manualMode: false,
-            restoreOnSuccess: true
+            restoreOnSuccess: false
         });
         this._draggable._statusIcon = this;
 
+        this.actor._delegate = {
+            statusIcon: this,
+            _statusIcon: this,
+            getDragActor: () => {
+                let clone = new Clutter.Clone({ source: this.actor });
+                clone.width = this.actor.width;
+                clone.height = this.actor.height;
+                clone.opacity = 220;
+                return clone;
+            },
+            getDragActorSource: () => {
+                return this.actor;
+            },
+            handleDragOver: (source, actor, x, y, time) => {
+                let dragged = source && (source.statusIcon || source._statusIcon);
+                if (dragged && dragged !== this) {
+                    return DND.DragMotionResult.MOVE_DROP;
+                }
+                return DND.DragMotionResult.NO_DROP;
+            },
+            acceptDrop: (source, actor, x, y, time) => {
+                let dragged = source && (source.statusIcon || source._statusIcon);
+                if (dragged && dragged !== this) {
+                    this.applet.handleIconDropOnIcon(dragged, this);
+                    return true;
+                }
+                return false;
+            }
+        };
+
         this._draggable.connect('drag-begin', () => {
-            this.actor.opacity = 140;
+            this._isDragging = true;
+            this.actor.opacity = 100;
+            this._tooltip.hide();
+            this._tooltip.preventShow = true;
+        });
+        this._draggable.connect('drag-cancelled', () => {
+            this._isDragging = false;
+            this.actor.opacity = 255;
+            this._tooltip.preventShow = false;
+            this.applet.sortIcons();
         });
         this._draggable.connect('drag-end', () => {
+            this._isDragging = false;
             this.actor.opacity = 255;
+            this._tooltip.preventShow = false;
         });
     }
 
@@ -272,11 +314,7 @@ class XAppStatusIcon {
             }
 
             this.iconName = iconName;
-            if (this.isInPopup) {
-                this.iconSize = 22 * global.ui_scale;
-            } else {
-                this.iconSize = this.applet.getPanelIconSize(type);
-            }
+            this.iconSize = this.applet.getPanelIconSize(type);
             this.proxy.icon_size = this.iconSize;
 
             if (iconName.includes("/") && type != St.IconType.SYMBOLIC) {
@@ -408,25 +446,44 @@ class XAppStatusIcon {
             return Clutter.EVENT_STOP;
         }
 
-        let [x, y, o] = this.getEventPositionInfo(actor);
-        this.proxy.call_button_press(x, y, button, event.get_time(), o, null, null);
+        if (button === Clutter.BUTTON_SECONDARY) {
+            let [x, y, o] = this.getEventPositionInfo(actor);
+            this.proxy.call_button_press(x, y, button, event.get_time(), o, null, null);
+            return Clutter.EVENT_STOP;
+        }
 
-        return Clutter.EVENT_STOP;
+        // Left click (button 1): save coordinates and propagate so DND can detect drag threshold
+        let [x, y, o] = this.getEventPositionInfo(actor);
+        this._pressInfo = { x: x, y: y, o: o, time: event.get_time() };
+        return Clutter.EVENT_PROPAGATE;
     }
 
     onButtonReleaseEvent(actor, event) {
         let button = event.get_button();
-        let [x, y, o] = this.getEventPositionInfo(actor);
 
-        this.proxy.call_button_release(x, y, button, event.get_time(), o, null, null);
-
-        // Windows 11 behavior: close the overflow popup when left-clicking an application
-        if (button === Clutter.BUTTON_PRIMARY && this.isInPopup && this.applet.closeOnClick) {
-            Mainloop.timeout_add(150, () => {
-                this.applet.menu.close();
-                return GLib.SOURCE_REMOVE;
-            });
+        // If drag was in progress, DND already handled the action
+        if (this._isDragging || DND.isDragging()) {
+            this._pressInfo = null;
+            return Clutter.EVENT_STOP;
         }
+
+        if (button === Clutter.BUTTON_PRIMARY && this._pressInfo) {
+            let [x, y, o] = this.getEventPositionInfo(actor);
+            this.proxy.call_button_press(this._pressInfo.x, this._pressInfo.y, 1, this._pressInfo.time, this._pressInfo.o, null, null);
+            this.proxy.call_button_release(x, y, 1, event.get_time(), o, null, null);
+            this._pressInfo = null;
+
+            if (this.isInPopup && this.applet.closeOnClick) {
+                Mainloop.timeout_add(150, () => {
+                    this.applet.menu.close();
+                    return GLib.SOURCE_REMOVE;
+                });
+            }
+            return Clutter.EVENT_STOP;
+        }
+
+        let [x, y, o] = this.getEventPositionInfo(actor);
+        this.proxy.call_button_release(x, y, button, event.get_time(), o, null, null);
 
         return Clutter.EVENT_STOP;
     }
@@ -488,18 +545,45 @@ class Win11TrayMenu extends Applet.AppletPopupMenu {
         this.mainBox.add_actor(this.gridBox);
 
         // Drop target for Drag and Drop from taskbar panel to popup
-        this.mainBox._delegate = {
+        let dropDelegate = {
             handleDragOver: (source, actor, x, y, time) => {
-                return DND.DragMotionResult.MOVE_DROP;
+                let dragged = source && (source.statusIcon || source._statusIcon);
+                if (dragged) return DND.DragMotionResult.MOVE_DROP;
+                return DND.DragMotionResult.NO_DROP;
             },
             acceptDrop: (source, actor, x, y, time) => {
-                if (source && source._statusIcon) {
-                    this.applet.unpinIcon(source._statusIcon);
+                let dragged = source && (source.statusIcon || source._statusIcon);
+                if (dragged) {
+                    this.applet.unpinIcon(dragged);
                     return true;
                 }
                 return false;
             }
         };
+
+        this.box._delegate = dropDelegate;
+        this.mainBox._delegate = dropDelegate;
+        this.gridBox._delegate = dropDelegate;
+    }
+
+    _calculatePosition() {
+        let [xPos, yPos] = super._calculatePosition();
+        const GAP = 12 * global.ui_scale;
+        switch (this._orientation) {
+            case St.Side.BOTTOM:
+                yPos -= GAP;
+                break;
+            case St.Side.TOP:
+                yPos += GAP;
+                break;
+            case St.Side.LEFT:
+                xPos += GAP;
+                break;
+            case St.Side.RIGHT:
+                xPos -= GAP;
+                break;
+        }
+        return [xPos, yPos];
     }
 }
 
@@ -523,9 +607,13 @@ class Win11TrayApplet extends Applet.Applet {
         this.settings.bindProperty(Settings.BindingDirection.IN, "always-show-chevron", "alwaysShowChevron", () => this._updateChevronVisibility());
         this.settings.bindProperty(Settings.BindingDirection.IN, "close-on-click", "closeOnClick");
         this.settings.bindProperty(Settings.BindingDirection.BIDIRECTIONAL, "pinned-icons", "pinnedIconsList", () => this.sortIcons());
+        this.settings.bindProperty(Settings.BindingDirection.BIDIRECTIONAL, "unpinned-order", "unpinnedOrderList", () => this.sortIcons());
 
         if (!this.pinnedIconsList || !Array.isArray(this.pinnedIconsList)) {
             this.pinnedIconsList = [];
+        }
+        if (!this.unpinnedOrderList || !Array.isArray(this.unpinnedOrderList)) {
+            this.unpinnedOrderList = [];
         }
 
         let isVertical = (this.orientation == St.Side.LEFT || this.orientation == St.Side.RIGHT);
@@ -552,14 +640,39 @@ class Win11TrayApplet extends Applet.Applet {
         this.chevronButton.set_child(this.chevronIcon);
         this._chevronTooltip = new Tooltips.Tooltip(this.chevronButton, _("Mostrar ícones ocultos"));
 
-        // Drag & Drop onto Chevron button sends icon to popup
+        // Drag & Drop onto Chevron button sends icon to popup (with hover-to-open)
+        let chevronHoverTimer = 0;
         this.chevronButton._delegate = {
             handleDragOver: (source, actor, x, y, time) => {
-                return DND.DragMotionResult.MOVE_DROP;
+                let dragged = source && (source.statusIcon || source._statusIcon);
+                if (dragged) {
+                    if (!this.menu.isOpen && chevronHoverTimer === 0) {
+                        chevronHoverTimer = Mainloop.timeout_add(300, () => {
+                            chevronHoverTimer = 0;
+                            if (DND.isDragging() && !this.menu.isOpen) {
+                                this.menu.open(true);
+                            }
+                            return GLib.SOURCE_REMOVE;
+                        });
+                    }
+                    return DND.DragMotionResult.MOVE_DROP;
+                }
+                return DND.DragMotionResult.NO_DROP;
+            },
+            handleDragOut: () => {
+                if (chevronHoverTimer > 0) {
+                    Mainloop.source_remove(chevronHoverTimer);
+                    chevronHoverTimer = 0;
+                }
             },
             acceptDrop: (source, actor, x, y, time) => {
-                if (source && source._statusIcon) {
-                    this.unpinIcon(source._statusIcon);
+                if (chevronHoverTimer > 0) {
+                    Mainloop.source_remove(chevronHoverTimer);
+                    chevronHoverTimer = 0;
+                }
+                let dragged = source && (source.statusIcon || source._statusIcon);
+                if (dragged) {
+                    this.unpinIcon(dragged);
                     return true;
                 }
                 return false;
@@ -572,19 +685,25 @@ class Win11TrayApplet extends Applet.Applet {
             vertical: isVertical
         });
 
-        // Drag & Drop onto Pinned Icons Box pins icon to panel
-        this.pinnedIconsBox._delegate = {
+        // Drag & Drop onto Pinned Icons Box or Main Container pins icon to panel
+        let panelDropDelegate = {
             handleDragOver: (source, actor, x, y, time) => {
-                return DND.DragMotionResult.MOVE_DROP;
+                let dragged = source && (source.statusIcon || source._statusIcon);
+                if (dragged) return DND.DragMotionResult.MOVE_DROP;
+                return DND.DragMotionResult.NO_DROP;
             },
             acceptDrop: (source, actor, x, y, time) => {
-                if (source && source._statusIcon) {
-                    this.pinIcon(source._statusIcon);
+                let dragged = source && (source.statusIcon || source._statusIcon);
+                if (dragged) {
+                    this.pinIcon(dragged);
                     return true;
                 }
                 return false;
             }
         };
+
+        this.pinnedIconsBox._delegate = panelDropDelegate;
+        this.mainContainer._delegate = panelDropDelegate;
 
         // Recorder Icon
         this._recording_indicator = new RecorderIcon(this);
@@ -730,8 +849,12 @@ class Win11TrayApplet extends Applet.Applet {
     pinIcon(icon) {
         let id = getIconIdentifier(icon.proxy);
         if (!this.pinnedIconsList.includes(id)) {
-            let list = [...this.pinnedIconsList, id];
-            this.settings.setValue("pinned-icons", list);
+            this.pinnedIconsList = [...this.pinnedIconsList, id];
+            this.settings.setValue("pinned-icons", this.pinnedIconsList);
+        }
+        if (this.unpinnedOrderList.includes(id)) {
+            this.unpinnedOrderList = this.unpinnedOrderList.filter(item => item !== id);
+            this.settings.setValue("unpinned-order", this.unpinnedOrderList);
         }
         icon.setTooltipText(icon.rawTooltipText);
         this.sortIcons();
@@ -739,9 +862,62 @@ class Win11TrayApplet extends Applet.Applet {
 
     unpinIcon(icon) {
         let id = getIconIdentifier(icon.proxy);
-        let list = this.pinnedIconsList.filter(item => item !== id);
-        this.settings.setValue("pinned-icons", list);
+        if (this.pinnedIconsList.includes(id)) {
+            this.pinnedIconsList = this.pinnedIconsList.filter(item => item !== id);
+            this.settings.setValue("pinned-icons", this.pinnedIconsList);
+        }
+        if (!this.unpinnedOrderList.includes(id)) {
+            this.unpinnedOrderList = [...this.unpinnedOrderList, id];
+            this.settings.setValue("unpinned-order", this.unpinnedOrderList);
+        }
         icon.setTooltipText(icon.rawTooltipText);
+        this.sortIcons();
+    }
+
+    handleIconDropOnIcon(draggedIcon, targetIcon) {
+        if (!draggedIcon || !targetIcon || draggedIcon === targetIcon) return;
+
+        let draggedId = getIconIdentifier(draggedIcon.proxy);
+        let targetId = getIconIdentifier(targetIcon.proxy);
+
+        let targetIsPinned = this.isIconPinned(targetIcon);
+        let draggedIsPinned = this.isIconPinned(draggedIcon);
+
+        if (targetIsPinned) {
+            // Target is on the taskbar panel
+            let pinnedList = this.pinnedIconsList.filter(id => id !== draggedId);
+            let targetIdx = pinnedList.indexOf(targetId);
+            if (targetIdx !== -1) {
+                pinnedList.splice(targetIdx, 0, draggedId);
+            } else {
+                pinnedList.push(draggedId);
+            }
+            this.pinnedIconsList = pinnedList;
+            this.settings.setValue("pinned-icons", this.pinnedIconsList);
+
+            if (this.unpinnedOrderList.includes(draggedId)) {
+                this.unpinnedOrderList = this.unpinnedOrderList.filter(id => id !== draggedId);
+                this.settings.setValue("unpinned-order", this.unpinnedOrderList);
+            }
+        } else {
+            // Target is in the popup menu
+            if (draggedIsPinned) {
+                this.pinnedIconsList = this.pinnedIconsList.filter(id => id !== draggedId);
+                this.settings.setValue("pinned-icons", this.pinnedIconsList);
+            }
+
+            let unpinnedList = this.unpinnedOrderList.filter(id => id !== draggedId);
+            let targetIdx = unpinnedList.indexOf(targetId);
+            if (targetIdx !== -1) {
+                unpinnedList.splice(targetIdx, 0, draggedId);
+            } else {
+                unpinnedList.push(draggedId);
+            }
+            this.unpinnedOrderList = unpinnedList;
+            this.settings.setValue("unpinned-order", this.unpinnedOrderList);
+        }
+
+        draggedIcon.setTooltipText(draggedIcon.rawTooltipText);
         this.sortIcons();
     }
 
@@ -891,7 +1067,18 @@ class Win11TrayApplet extends Applet.Applet {
             }
         }
 
-        pinned.sort(this._sortFunc);
+        pinned.sort((a, b) => {
+            let idA = getIconIdentifier(a.proxy);
+            let idB = getIconIdentifier(b.proxy);
+            let idxA = this.pinnedIconsList.indexOf(idA);
+            let idxB = this.pinnedIconsList.indexOf(idB);
+            if (idxA !== -1 && idxB !== -1) {
+                return idxA - idxB;
+            }
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return this._sortFunc(a, b);
+        });
 
         let oldChildren = this.pinnedIconsBox.get_children();
         for (let child of oldChildren) {
@@ -916,7 +1103,18 @@ class Win11TrayApplet extends Applet.Applet {
             }
         }
 
-        unpinned.sort(this._sortFunc);
+        unpinned.sort((a, b) => {
+            let idA = getIconIdentifier(a.proxy);
+            let idB = getIconIdentifier(b.proxy);
+            let idxA = this.unpinnedOrderList.indexOf(idA);
+            let idxB = this.unpinnedOrderList.indexOf(idB);
+            if (idxA !== -1 && idxB !== -1) {
+                return idxA - idxB;
+            }
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return this._sortFunc(a, b);
+        });
 
         let oldRows = this.menu.gridBox.get_children();
         for (let row of oldRows) {
