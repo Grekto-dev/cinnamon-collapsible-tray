@@ -492,6 +492,12 @@ class XAppStatusIcon {
 
         if (button === Clutter.BUTTON_SECONDARY) {
             let [x, y, o] = this.getEventPositionInfo(actor);
+            if (this.isInPopup) {
+                this.applet.menu.close();
+                this.proxy.call_button_press(x, y, button, event.get_time(), o, null, null);
+                this.proxy.call_button_release(x, y, button, event.get_time(), o, null, null);
+                return Clutter.EVENT_STOP;
+            }
             this.proxy.call_button_press(x, y, button, event.get_time(), o, null, null);
             return Clutter.EVENT_STOP;
         }
@@ -508,6 +514,10 @@ class XAppStatusIcon {
         // If drag was in progress, DND already handled the action
         if (this._isDragging || DND.isDragging()) {
             this._pressInfo = null;
+            return Clutter.EVENT_STOP;
+        }
+
+        if (button === Clutter.BUTTON_SECONDARY && this.isInPopup) {
             return Clutter.EVENT_STOP;
         }
 
