@@ -1,0 +1,98 @@
+/* =========================================================================
+ * Windows 11 System Tray Applet for Cinnamon (win11-tray@cinnamon)
+ * Replicates the Windows 11 system tray overflow popup and chevron button
+ * ========================================================================= */
+
+/* Applet Main Container on Panel */
+.win11-tray-main-container {
+    padding: 0;
+    margin: 0;
+    spacing: 2px;
+}
+
+/* Panel Chevron Button */
+.win11-tray-chevron {
+    padding: 0 7px;
+    margin: 0 1px;
+    border-radius: 4px;
+    transition-duration: 120ms;
+}
+
+.win11-tray-chevron:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.win11-tray-chevron:active,
+.win11-tray-chevron:checked,
+.win11-tray-chevron.active {
+    background-color: rgba(255, 255, 255, 0.14);
+}
+
+.win11-tray-chevron-icon {
+    icon-size: 14px;
+}
+
+/* Pinned Items on Taskbar Panel */
+.win11-tray-panel-box {
+    spacing: 2px;
+}
+
+.win11-tray-panel-item {
+    padding: 0 4px;
+    margin: 0;
+    border-radius: 4px;
+    transition-duration: 120ms;
+}
+
+.win11-tray-panel-item:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Windows 11 Overflow Popup Container */
+.win11-tray-popup {
+    background-color: rgba(32, 32, 35, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.50);
+    padding: 10px 12px;
+}
+
+.win11-tray-popup-content {
+    spacing: 4px;
+    padding: 0;
+    margin: 0;
+}
+
+/* Grid Layout */
+.win11-tray-grid {
+    spacing: 4px;
+}
+
+.win11-tray-row {
+    spacing: 4px;
+}
+
+/* Grid Icon Cells */
+.win11-tray-popup-item {
+    min-width: 38px;
+    max-width: 38px;
+    min-height: 38px;
+    max-height: 38px;
+    border-radius: 6px;
+    transition-duration: 120ms;
+}
+
+.win11-tray-popup-item:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.win11-tray-popup-item:active {
+    background-color: rgba(255, 255, 255, 0.16);
+}
+
+.win11-tray-empty {
+    font-size: 9pt;
+    color: rgba(255, 255, 255, 0.6);
+    padding: 14px 20px;
+    text-align: center;
+}

@@ -1,0 +1,64 @@
+{
+    "layout": {
+        "type": "layout",
+        "pages": ["generalPage"],
+        "generalPage": {
+            "type": "page",
+            "title": "Configurações",
+            "sections": ["behaviorSection", "appearanceSection", "infoSection"]
+        },
+        "behaviorSection": {
+            "type": "section",
+            "title": "Comportamento"
+        },
+        "appearanceSection": {
+            "type": "section",
+            "title": "Aparência"
+        },
+        "infoSection": {
+            "type": "section",
+            "title": "Dica de Uso"
+        }
+    },
+    "columns": {
+        "type": "spinbutton",
+        "default": 5,
+        "min": 3,
+        "max": 8,
+        "step": 1,
+        "units": "colunas",
+        "section": "appearanceSection",
+        "description": "Número de colunas no menu de ícones ocultos",
+        "tooltip": "Quantidade de ícones por linha exibidos na janela flutuante estilo Windows 11."
+    },
+    "default-pinned": {
+        "type": "checkbox",
+        "default": false,
+        "section": "behaviorSection",
+        "description": "Fixar novos aplicativos na barra de tarefas por padrão",
+        "tooltip": "Se desmarcado (padrão Windows 11), novos aplicativos iniciados ficarão recolhidos dentro do menu."
+    },
+    "always-show-chevron": {
+        "type": "checkbox",
+        "default": false,
+        "section": "behaviorSection",
+        "description": "Sempre exibir a setinha mesmo se o menu estiver vazio",
+        "tooltip": "Se desmarcado (padrão Windows 11), a setinha se oculta automaticamente quando todos os ícones estiverem na barra."
+    },
+    "close-on-click": {
+        "type": "checkbox",
+        "default": true,
+        "section": "behaviorSection",
+        "description": "Fechar o menu ao clicar com o botão esquerdo em um aplicativo",
+        "tooltip": "Fecha o menu suspenso após abrir um aplicativo pelo clique esquerdo."
+    },
+    "info-label": {
+        "type": "label",
+        "section": "infoSection",
+        "description": "💡 Dica: Você pode clicar com o botão do meio (ou Shift + Clique) em qualquer ícone da bandeja para alternar instantaneamente entre fixá-lo na barra ou recolhê-lo no menu. Você também pode arrastar e soltar (Drag & Drop) os ícones!"
+    },
+    "pinned-icons": {
+        "type": "generic",
+        "default": []
+    }
+}
