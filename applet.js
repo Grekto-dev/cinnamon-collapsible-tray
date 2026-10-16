@@ -315,8 +315,11 @@ class XAppStatusIcon {
             ? this.rawTooltipText 
             : getIconDisplayName(this.proxy);
 
+        let escapedName = GLib.markup_escape_text(baseName, -1);
+        let escapedHint = GLib.markup_escape_text(pinHint, -1);
+
         this._tooltip.preventShow = false;
-        this._tooltip.set_markup(baseName + pinHint);
+        this._tooltip.set_markup(escapedName + escapedHint);
 
         if (this._tooltip.visible) {
             this._tooltip.hide();
@@ -466,9 +469,10 @@ class XAppStatusIcon {
 }
 
 class Win11TrayMenu extends Applet.AppletPopupMenu {
-    constructor(sourceActor, orientation, applet) {
-        super(sourceActor, orientation);
+    constructor(applet, orientation) {
+        super(applet, orientation);
         this.applet = applet;
+        this.sourceActor = applet.chevronButton;
         this.setCustomStyleClass('win11-tray-popup');
 
         this.mainBox = new St.BoxLayout({
@@ -546,8 +550,7 @@ class Win11TrayApplet extends Applet.Applet {
             icon_type: St.IconType.SYMBOLIC
         });
         this.chevronButton.set_child(this.chevronIcon);
-        this._chevronTooltip = new Tooltips.PanelItemTooltip(this, _("Mostrar ícones ocultos"), this.orientation);
-        this.chevronButton.connect('enter-event', () => { this._chevronTooltip.preventShow = false; });
+        this._chevronTooltip = new Tooltips.Tooltip(this.chevronButton, _("Mostrar ícones ocultos"));
 
         // Drag & Drop onto Chevron button sends icon to popup
         this.chevronButton._delegate = {
@@ -593,7 +596,7 @@ class Win11TrayApplet extends Applet.Applet {
 
         // Popup Menu Setup
         this.menuManager = new PopupMenu.PopupMenuManager(this);
-        this.menu = new Win11TrayMenu(this.chevronButton, this.orientation, this);
+        this.menu = new Win11TrayMenu(this, this.orientation);
         this.menuManager.addMenu(this.menu);
 
         this.chevronButton.connect('clicked', () => {
@@ -677,12 +680,12 @@ class Win11TrayApplet extends Applet.Applet {
         if (isOpen) {
             this.chevronButton.add_style_pseudo_class('active');
             this.chevronButton.add_style_class_name('active');
-            this._chevronTooltip.set_markup(_("Ocultar ícones"));
+            this._chevronTooltip.set_text(_("Ocultar ícones"));
             this._relayoutPopupGrid();
         } else {
             this.chevronButton.remove_style_pseudo_class('active');
             this.chevronButton.remove_style_class_name('active');
-            this._chevronTooltip.set_markup(_("Mostrar ícones ocultos"));
+            this._chevronTooltip.set_text(_("Mostrar ícones ocultos"));
         }
     }
 
@@ -877,7 +880,11 @@ class Win11TrayApplet extends Applet.Applet {
 
         pinned.sort(this._sortFunc);
 
-        this.pinnedIconsBox.destroy_all_children();
+        let oldChildren = this.pinnedIconsBox.get_children();
+        for (let child of oldChildren) {
+            this.pinnedIconsBox.remove_actor(child);
+        }
+
         for (let icon of pinned) {
             icon.setInPopup(false);
             if (icon.actor.get_parent()) {
@@ -898,7 +905,16 @@ class Win11TrayApplet extends Applet.Applet {
 
         unpinned.sort(this._sortFunc);
 
-        this.menu.gridBox.destroy_all_children();
+        let oldRows = this.menu.gridBox.get_children();
+        for (let row of oldRows) {
+            if (row instanceof St.BoxLayout) {
+                let rowItems = row.get_children();
+                for (let item of rowItems) {
+                    row.remove_actor(item);
+                }
+            }
+            row.destroy();
+        }
 
         if (unpinned.length === 0) {
             let emptyLabel = new St.Label({
