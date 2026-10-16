@@ -142,13 +142,25 @@ class XAppStatusIcon {
         this.iconName = null;
         this.rawTooltipText = "";
 
-        this.actor = new St.BoxLayout({
+        this.actor = new St.Button({
             style_class: "win11-tray-item win11-tray-panel-item",
             reactive: !global.settings.get_boolean('panel-edit-mode'),
             track_hover: true,
-            x_expand: false,
-            y_expand: false
+            can_focus: true,
+            x_align: St.Align.MIDDLE,
+            y_align: St.Align.MIDDLE,
+            x_fill: false,
+            y_fill: false
         });
+
+        this.box = new St.BoxLayout({
+            vertical: false,
+            x_expand: false,
+            y_expand: false,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        this.actor.set_child(this.box);
 
         this.icon_holder = new St.Bin({
             x_align: St.Align.MIDDLE,
@@ -161,7 +173,7 @@ class XAppStatusIcon {
             'y-align': St.Align.END
         });
 
-        this.actor.add_actor(this.icon_holder);
+        this.box.add_actor(this.icon_holder);
 
         this._tooltip = new Tooltips.PanelItemTooltip(this, "", applet.orientation);
 
@@ -174,6 +186,10 @@ class XAppStatusIcon {
 
         this._setupDnd();
         this.refresh();
+    }
+
+    get vertical() {
+        return this.box ? this.box.vertical : false;
     }
 
     _setupDnd() {
@@ -229,11 +245,13 @@ class XAppStatusIcon {
             this.actor.opacity = 80;
             this._tooltip.hide();
             this._tooltip.preventShow = true;
+            this.applet.setDraggingState(true);
         });
         this._draggable.connect('drag-cancelled', () => {
             this._isDragging = false;
             this.actor.opacity = 255;
             this._tooltip.preventShow = false;
+            this.applet.setDraggingState(false);
             this.applet.hideIndicator();
             this.applet.sortIcons();
         });
@@ -241,6 +259,7 @@ class XAppStatusIcon {
             this._isDragging = false;
             this.actor.opacity = 255;
             this._tooltip.preventShow = false;
+            this.applet.setDraggingState(false);
             this.applet.hideIndicator();
         });
     }
@@ -252,15 +271,15 @@ class XAppStatusIcon {
         if (this.isInPopup) {
             this.actor.remove_style_class_name("win11-tray-panel-item");
             this.actor.add_style_class_name("win11-tray-popup-item");
-            if (this.actor.contains(this.label)) {
-                this.actor.remove_actor(this.label);
+            if (this.box.contains(this.label)) {
+                this.box.remove_actor(this.label);
             }
             this.label.visible = false;
         } else {
             this.actor.remove_style_class_name("win11-tray-popup-item");
             this.actor.add_style_class_name("win11-tray-panel-item");
-            if (this.show_label && !this.actor.contains(this.label)) {
-                this.actor.add_actor(this.label);
+            if (this.show_label && !this.box.contains(this.label)) {
+                this.box.add_actor(this.label);
             }
             this.label.visible = this.show_label;
         }
@@ -300,7 +319,7 @@ class XAppStatusIcon {
 
     setOrientation(orientation) {
         if (this.isInPopup) {
-            this.actor.vertical = false;
+            this.box.vertical = false;
             this.actor.remove_style_class_name("vertical");
             return;
         }
@@ -308,12 +327,12 @@ class XAppStatusIcon {
         switch (orientation) {
             case St.Side.TOP:
             case St.Side.BOTTOM:
-                this.actor.vertical = false;
+                this.box.vertical = false;
                 this.actor.remove_style_class_name("vertical");
                 break;
             case St.Side.LEFT:
             case St.Side.RIGHT:
-                this.actor.vertical = true;
+                this.box.vertical = true;
                 this.actor.add_style_class_name("vertical");
                 break;
         }
@@ -335,7 +354,7 @@ class XAppStatusIcon {
             if (iconName.includes("/") && type != St.IconType.SYMBOLIC) {
                 this.icon_loader_handle = St.TextureCache.get_default().load_image_from_file_async(
                     iconName,
-                    this.actor.vertical ? this.iconSize : -1,
+                    this.vertical ? this.iconSize : -1,
                     this.iconSize,
                     (...args) => this._onImageLoaded(...args)
                 );
@@ -392,13 +411,13 @@ class XAppStatusIcon {
                           this.proxy.label && this.proxy.label.trim().length > 0;
 
         if (this.show_label) {
-            if (!this.actor.contains(this.label)) {
-                this.actor.add_actor(this.label);
+            if (!this.box.contains(this.label)) {
+                this.box.add_actor(this.label);
             }
             this.label.show();
         } else {
-            if (this.actor.contains(this.label)) {
-                this.actor.remove_actor(this.label);
+            if (this.box.contains(this.label)) {
+                this.box.remove_actor(this.label);
             }
             this.label.hide();
         }
@@ -934,17 +953,34 @@ class Win11TrayApplet extends Applet.Applet {
         let [tX, tY] = targetActor.get_transformed_position();
         let [tW, tH] = targetActor.get_transformed_size();
 
-        let barW = Math.max(2, Math.round(2 * global.ui_scale));
-        let barH = Math.min(18 * global.ui_scale, tH - 4);
-        if (barH < 14 * global.ui_scale) {
-            barH = 16 * global.ui_scale;
+        let isVerticalPanel = (targetActor.get_parent() === this.pinnedIconsBox) &&
+                              (this.orientation === St.Side.LEFT || this.orientation === St.Side.RIGHT);
+
+        if (isVerticalPanel) {
+            let barW = Math.min(18 * global.ui_scale, tW - 4);
+            let barH = Math.max(2, Math.round(2 * global.ui_scale));
+            let gap = 2 * global.ui_scale;
+            let barX = Math.round(tX + (tW - barW) / 2);
+            let barY = isAfter
+                ? Math.round(tY + tH + (gap / 2) - (barH / 2))
+                : Math.round(tY - (gap / 2) - (barH / 2));
+            this.indicatorBar.set_size(barW, barH);
+            this.indicatorBar.set_position(barX, barY);
+        } else {
+            let barW = Math.max(2, Math.round(2 * global.ui_scale));
+            let barH = Math.min(18 * global.ui_scale, tH - 4);
+            if (barH < 14 * global.ui_scale) {
+                barH = 16 * global.ui_scale;
+            }
+            let gap = 2 * global.ui_scale;
+            let barX = isAfter 
+                ? Math.round(tX + tW + (gap / 2) - (barW / 2)) 
+                : Math.round(tX - (gap / 2) - (barW / 2));
+            let barY = Math.round(tY + (tH - barH) / 2);
+            this.indicatorBar.set_size(barW, barH);
+            this.indicatorBar.set_position(barX, barY);
         }
 
-        let barX = isAfter ? Math.round(tX + tW - barW / 2) : Math.round(tX - barW / 2);
-        let barY = Math.round(tY + (tH - barH) / 2);
-
-        this.indicatorBar.set_size(barW, barH);
-        this.indicatorBar.set_position(barX, barY);
         this.indicatorBar.show();
         this.indicatorBar.raise_top();
     }
@@ -952,6 +988,48 @@ class Win11TrayApplet extends Applet.Applet {
     hideIndicator() {
         if (this.indicatorBar) {
             this.indicatorBar.hide();
+        }
+    }
+
+    setDraggingState(isDragging) {
+        this._isDragging = isDragging;
+        if (isDragging) {
+            this.actor.add_style_class_name('win11-tray-dragging');
+            this.mainContainer.add_style_class_name('win11-tray-dragging');
+            if (this.menu && this.menu.actor) {
+                this.menu.actor.add_style_class_name('win11-tray-dragging');
+            }
+            if (this.menu && this.menu.mainBox) {
+                this.menu.mainBox.add_style_class_name('win11-tray-dragging');
+            }
+            if (this.menu && this.menu.gridBox) {
+                this.menu.gridBox.add_style_class_name('win11-tray-dragging');
+            }
+            for (let key in this.statusIcons) {
+                let icon = this.statusIcons[key];
+                icon.actor.track_hover = false;
+                icon.actor.hover = false;
+                icon.actor.add_style_class_name('win11-tray-dragging');
+            }
+        } else {
+            this.actor.remove_style_class_name('win11-tray-dragging');
+            this.mainContainer.remove_style_class_name('win11-tray-dragging');
+            if (this.menu && this.menu.actor) {
+                this.menu.actor.remove_style_class_name('win11-tray-dragging');
+            }
+            if (this.menu && this.menu.mainBox) {
+                this.menu.mainBox.remove_style_class_name('win11-tray-dragging');
+            }
+            if (this.menu && this.menu.gridBox) {
+                this.menu.gridBox.remove_style_class_name('win11-tray-dragging');
+            }
+            let panelEditMode = global.settings.get_boolean('panel-edit-mode');
+            for (let key in this.statusIcons) {
+                let icon = this.statusIcons[key];
+                icon.actor.remove_style_class_name('win11-tray-dragging');
+                icon.actor.track_hover = !panelEditMode;
+                icon.actor.sync_hover();
+            }
         }
     }
 

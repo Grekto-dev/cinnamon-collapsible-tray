@@ -40,7 +40,7 @@
 }
 
 .win11-tray-panel-item {
-    padding-left: 1px !important;
+    padding-left: 2px !important;
     padding-right: 2px !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
@@ -71,37 +71,37 @@
     border: 1px solid rgba(255, 255, 255, 0.12) !important;
     border-radius: 10px !important;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.50) !important;
-    padding: 4px 6px !important;
+    padding: 6px !important;
     margin: 0 !important;
 }
 
 .win11-tray-popup-content {
-    spacing: 3px;
+    spacing: 2px;
     padding: 0;
     margin: 0;
 }
 
 /* Grid Layout */
 .win11-tray-grid {
-    spacing: 3px;
+    spacing: 2px;
     padding: 0;
     margin: 0;
 }
 
 .win11-tray-row {
-    spacing: 3px;
+    spacing: 2px;
     padding: 0;
     margin: 0;
 }
 
-/* Grid Icon Cells */
+/* Grid Icon Cells - Measured from Windows 11 recordings: 40px x 40px buttons */
 .win11-tray-popup-item {
-    min-width: 32px;
-    max-width: 32px;
-    min-height: 32px;
-    max-height: 32px;
-    padding: 0;
-    margin: 0;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    padding: 0 !important;
+    margin: 1px !important;
     border-radius: 4px;
     transition-duration: 100ms;
 }
@@ -128,9 +128,26 @@
     padding: 4px;
 }
 
-/* Windows 11 Drop Indicator Bar */
+/* Windows 11 Drop Indicator Bar: Slender rounded capsule */
 .win11-tray-drop-indicator {
     background-color: #ffffff !important;
     border-radius: 1px !important;
     box-shadow: 0 0 3px rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Suppress all button hover/active styles during Drag and Drop */
+.win11-tray-dragging,
+.win11-tray-dragging .win11-tray-popup-item,
+.win11-tray-dragging .win11-tray-popup-item:hover,
+.win11-tray-dragging .win11-tray-popup-item:active,
+.win11-tray-dragging .win11-tray-panel-item,
+.win11-tray-dragging .win11-tray-panel-item:hover,
+.win11-tray-dragging .win11-tray-panel-item:active,
+.win11-tray-dragging .win11-tray-chevron,
+.win11-tray-dragging .win11-tray-chevron:hover,
+.win11-tray-dragging .win11-tray-chevron:active,
+.win11-tray-item.win11-tray-dragging,
+.win11-tray-item.win11-tray-dragging:hover,
+.win11-tray-item.win11-tray-dragging:active {
+    background-color: transparent !important;
 }
