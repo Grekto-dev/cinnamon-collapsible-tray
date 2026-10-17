@@ -663,24 +663,51 @@ class Win11TrayMenu extends Applet.AppletPopupMenu {
         this.gridBox._delegate = dropDelegate;
     }
 
+    // Work area of the monitor: the screen minus every visible panel on it.
+    _workArea() {
+        let monitor = Main.layoutManager.findMonitorForActor(this.sourceActor);
+        let x1 = monitor.x, y1 = monitor.y;
+        let x2 = x1 + monitor.width, y2 = y1 + monitor.height;
+        for (let panel of Main.panelManager.getPanelsInMonitor(monitor.index)) {
+            if (!panel.getIsVisible()) continue;
+            switch (panel.panelPosition) {
+                case PopupMenu.PanelLoc.top: y1 += panel.actor.height; break;
+                case PopupMenu.PanelLoc.bottom: y2 -= panel.actor.height; break;
+                case PopupMenu.PanelLoc.left: x1 += panel.actor.width; break;
+                case PopupMenu.PanelLoc.right: x2 -= panel.actor.width; break;
+            }
+        }
+        return [x1, y1, x2, y2];
+    }
+
+    // The popup opens on the inner side of the panel it belongs to, a fixed gap
+    // away from the panel edge (not from the chevron button):
+    // bottom panel -> above it, top -> below it, left -> to its right,
+    // right -> to its left.
     _calculatePosition() {
         let [xPos, yPos] = super._calculatePosition();
-        const GAP = 12 * global.ui_scale;
+        const GAP = Math.round(12 * global.ui_scale);
+        let [x1, y1, x2, y2] = this._workArea();
+        let [, natWidth] = this.actor.get_preferred_width(-1);
         switch (this._orientation) {
             case St.Side.BOTTOM:
-                yPos -= GAP;
+                this.sideFlipped = true;
+                yPos = y2 - this.actor.get_preferred_height(natWidth)[1] - GAP;
                 break;
             case St.Side.TOP:
-                yPos += GAP;
+                this.sideFlipped = false;
+                yPos = y1 + GAP;
                 break;
             case St.Side.LEFT:
-                xPos += GAP;
+                this.sideFlipped = false;
+                xPos = x1 + GAP;
                 break;
             case St.Side.RIGHT:
-                xPos -= GAP;
+                this.sideFlipped = true;
+                xPos = x2 - natWidth - GAP;
                 break;
         }
-        return [xPos, yPos];
+        return [Math.round(xPos), Math.round(yPos)];
     }
 }
 
@@ -854,6 +881,7 @@ class Win11TrayApplet extends Applet.Applet {
         });
 
         this._updateChevronIcon(false);
+        this._updateOrientationLayout();
 
         // State Tracking
         this.statusIcons = {};
@@ -871,6 +899,7 @@ class Win11TrayApplet extends Applet.Applet {
         this.signalManager.connect(global.settings, 'changed::panel-edit-mode', this.on_panel_edit_mode_changed, this);
         this.signalManager.connect(Main.systrayManager, "changed", this.onSystrayRolesChanged, this);
         this.signalManager.connect(this.panel, "icon-size-changed", this.icon_size_changed, this);
+        this.signalManager.connect(this.panel.actor, "notify::width", this._updateOrientationLayout, this);
         this.signalManager.connect(global, "scale-changed", this.ui_scale_changed, this);
 
         this._setupContextMenu();
@@ -1553,12 +1582,33 @@ class Win11TrayApplet extends Applet.Applet {
         }
     }
 
+    // On a vertical panel the zone can be wider than the panel itself (other
+    // applets), and a vertical box stretches its children to that width, so the
+    // chevron stuck out of the bar. Pin both to the panel thickness.
+    _updateOrientationLayout() {
+        let vertical = (this.orientation == St.Side.LEFT || this.orientation == St.Side.RIGHT);
+        if (vertical) {
+            let w = Math.round(this.panel.actor.width);
+            if (w <= 0) return;
+            this.mainContainer.set_x_align(Clutter.ActorAlign.START);
+            this.mainContainer.set_width(w);
+            this.chevronButton.set_x_align(Clutter.ActorAlign.START);
+            this.chevronButton.set_width(Math.max(1, w - 2));
+        } else {
+            this.mainContainer.set_x_align(Clutter.ActorAlign.FILL);
+            this.mainContainer.set_width(-1);
+            this.chevronButton.set_x_align(Clutter.ActorAlign.FILL);
+            this.chevronButton.set_width(-1);
+        }
+    }
+
     on_orientation_changed(newOrientation) {
         this.orientation = newOrientation;
         let isVertical = (newOrientation == St.Side.LEFT || newOrientation == St.Side.RIGHT);
 
         this.mainContainer.vertical = isVertical;
         this.pinnedIconsBox.vertical = isVertical;
+        this._updateOrientationLayout();
 
         this.menu.setOrientation(newOrientation);
         this._updateChevronIcon(this.menu.isOpen);
