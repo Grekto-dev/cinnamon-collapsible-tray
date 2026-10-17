@@ -9,27 +9,30 @@
         },
         "behaviorSection": {
             "type": "section",
-            "title": "Comportamento"
+            "title": "Comportamento",
+            "keys": ["default-pinned", "always-show-chevron", "close-on-click"]
         },
         "appearanceSection": {
             "type": "section",
-            "title": "Aparência"
+            "title": "Aparência",
+            "keys": ["columns"]
         },
         "infoSection": {
             "type": "section",
-            "title": "Dica de Uso"
+            "title": "Dica de Uso",
+            "keys": ["info-label"]
         }
     },
     "columns": {
         "type": "spinbutton",
         "default": 5,
-        "min": 3,
-        "max": 8,
+        "min": 2,
+        "max": 10,
         "step": 1,
-        "units": "colunas",
+        "units": "ícones",
         "section": "appearanceSection",
-        "description": "Número de colunas no menu de ícones ocultos",
-        "tooltip": "Quantidade de ícones por linha exibidos na janela flutuante estilo Windows 11."
+        "description": "Ícones por linha no menu de ícones ocultos",
+        "tooltip": "Quantidade de ícones por linha na janela flutuante estilo Windows 11. A largura da janela se ajusta a esse número."
     },
     "default-pinned": {
         "type": "checkbox",
