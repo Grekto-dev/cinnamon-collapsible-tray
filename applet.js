@@ -176,6 +176,7 @@ class XAppStatusIcon {
         this.box.add_actor(this.icon_holder);
 
         this._tooltip = new Tooltips.PanelItemTooltip(this, "", applet.orientation);
+        this._installPopupTooltipPositioning();
 
         this.actor.connect('button-press-event', Lang.bind(this, this.onButtonPressEvent));
         this.actor.connect('button-release-event', Lang.bind(this, this.onButtonReleaseEvent));
@@ -264,6 +265,46 @@ class XAppStatusIcon {
         });
     }
 
+    // Cinnamon's PanelItemTooltip.show() returns early while any popup menu is
+    // open (global.menuStack), so icons inside the overflow popup never got a
+    // tooltip. For those, place the tooltip right above/below the icon ourselves.
+    _installPopupTooltipPositioning() {
+        let tooltip = this._tooltip;
+        let origShow = tooltip.show;
+        let icon = this;
+        tooltip.show = function() {
+            if (!icon.isInPopup) {
+                return origShow.apply(this, arguments);
+            }
+            if (this._tooltip.get_text() == "" || !this.mousePosition) return;
+
+            let label = this._tooltip;
+            let prevOpacity = label.get_opacity();
+            label.set_opacity(0);
+            label.show();
+
+            let [, , w, h] = label.get_preferred_size();
+            let monitor = Main.layoutManager.findMonitorForActor(icon.actor);
+            let [ix, iy] = icon.actor.get_transformed_position();
+            let gap = 4;
+
+            let left = Math.round(ix + icon.actor.width / 2 - w / 2);
+            left = Math.max(left, monitor.x);
+            left = Math.min(left, monitor.x + monitor.width - w);
+
+            let top = (icon.applet.orientation === St.Side.TOP)
+                ? Math.round(iy + icon.actor.height + gap)
+                : Math.round(iy - h - gap);
+            top = Math.max(top, monitor.y);
+            top = Math.min(top, monitor.y + monitor.height - h);
+
+            label.set_position(left, top);
+            label.set_opacity(prevOpacity);
+            label.raise_top();
+            this.visible = true;
+        };
+    }
+
     setInPopup(isInPopup) {
         if (this.isInPopup === isInPopup) return;
         this.isInPopup = isInPopup;
@@ -301,6 +342,7 @@ class XAppStatusIcon {
         }
         if ('Visible' in prop_names) {
             this.setVisible(proxy.visible);
+            if (this.isInPopup) this.applet._relayoutPopupGrid();
         }
         if ('Name' in prop_names) {
             this.applet.sortIcons();
@@ -378,20 +420,14 @@ class XAppStatusIcon {
 
     setTooltipText(tooltipText) {
         this.rawTooltipText = tooltipText || "";
-        let isPinned = this.applet.isIconPinned(this);
-        let pinHint = isPinned 
-            ? _("\n(Clique do meio para recolher no menu)") 
-            : _("\n(Clique do meio para fixar na barra)");
-
         let baseName = this.rawTooltipText.length > 0 
             ? this.rawTooltipText 
             : getIconDisplayName(this.proxy);
 
         let escapedName = GLib.markup_escape_text(baseName, -1);
-        let escapedHint = GLib.markup_escape_text(pinHint, -1);
 
         this._tooltip.preventShow = false;
-        this._tooltip.set_markup(escapedName + escapedHint);
+        this._tooltip.set_markup(escapedName);
 
         if (this._tooltip.visible) {
             this._tooltip.hide();
@@ -492,8 +528,13 @@ class XAppStatusIcon {
 
         if (button === Clutter.BUTTON_SECONDARY) {
             let [x, y, o] = this.getEventPositionInfo(actor);
-            this.applet.onIconRightClicked(this);
-            this.proxy.call_button_press(x, y, button, event.get_time(), o, null, null);
+            if (this.isInPopup) {
+                // Handled on release, once the real release was consumed here
+                // (otherwise it would leak to the window below).
+                this._secondaryPress = { x: x, y: y, o: o, time: event.get_time() };
+            } else {
+                this.proxy.call_button_press(x, y, button, event.get_time(), o, null, null);
+            }
             return Clutter.EVENT_STOP;
         }
 
@@ -524,6 +565,13 @@ class XAppStatusIcon {
                     return GLib.SOURCE_REMOVE;
                 });
             }
+            return Clutter.EVENT_STOP;
+        }
+
+        if (button === Clutter.BUTTON_SECONDARY && this.isInPopup && this._secondaryPress) {
+            let info = this._secondaryPress;
+            this._secondaryPress = null;
+            this.applet.forwardSecondaryClick(this, info);
             return Clutter.EVENT_STOP;
         }
 
@@ -687,7 +735,7 @@ class Win11TrayApplet extends Applet.Applet {
             icon_type: St.IconType.SYMBOLIC
         });
         this.chevronButton.set_child(this.chevronIcon);
-        this._chevronTooltip = new Tooltips.Tooltip(this.chevronButton, _("Mostrar ícones ocultos"));
+        this._chevronTooltip = new Tooltips.PanelItemTooltip({ actor: this.chevronButton, _applet: this }, _("Mostrar ícones ocultos"), this.orientation);
 
         // Drag & Drop onto Chevron button sends icon to popup (with hover-to-open)
         let chevronHoverTimer = 0;
@@ -746,6 +794,8 @@ class Win11TrayApplet extends Applet.Applet {
                     if (children.length > 0) {
                         let lastChild = children[children.length - 1];
                         this.showIndicator(lastChild, true);
+                    } else {
+                        this.showIndicator(this.pinnedIconsBox, false);
                     }
                     return DND.DragMotionResult.MOVE_DROP;
                 }
@@ -782,10 +832,6 @@ class Win11TrayApplet extends Applet.Applet {
         this.menuManager.addMenu(this.menu);
 
         this._stageEventId = 0;
-        this._focusWindowId = 0;
-        this._contextPropId = 0;
-        this._activeContextIcon = null;
-
         this.chevronButton.connect('button-press-event', (actor, event) => {
             if (event.get_button() === Clutter.BUTTON_PRIMARY) {
                 this.menu.toggle();
@@ -911,44 +957,52 @@ class Win11TrayApplet extends Applet.Applet {
         this.chevronIcon.set_icon_name(iconName);
     }
 
-    onIconRightClicked(icon) {
-        if (!icon || !icon.isInPopup) return;
+    // Forward a right click on an icon inside the open popup to the app so it
+    // shows its native menu, while the popup stays open. The app's menu needs
+    // the pointer grab, so our modal grab is dropped meanwhile and taken again
+    // as soon as the grab is free (pushModal fails while the app menu holds it).
+    forwardSecondaryClick(icon, info) {
+        this._releaseModal();
+        this._cancelRegrab();
 
-        if (this._contextPropId > 0 && this._activeContextIcon && this._activeContextIcon.proxy) {
-            try {
-                this._activeContextIcon.proxy.disconnect(this._contextPropId);
-            } catch (e) {}
-            this._contextPropId = 0;
-            this._activeContextIcon = null;
-        }
-
-        this._activeContextIcon = icon;
-        this._contextPropId = icon.proxy.connect('g-properties-changed', (proxy, changed) => {
-            let props = changed.deep_unpack();
-            if ('SecondaryMenuIsOpen' in props) {
-                if (!proxy.secondary_menu_is_open) {
-                    if (this._contextPropId > 0 && this._activeContextIcon) {
-                        try {
-                            this._activeContextIcon.proxy.disconnect(this._contextPropId);
-                        } catch (e) {}
-                        this._contextPropId = 0;
-                        this._activeContextIcon = null;
-                    }
-                    Mainloop.timeout_add(150, () => {
-                        if (this.menu && this.menu.isOpen) {
-                            this.menu.close();
-                        }
-                        return GLib.SOURCE_REMOVE;
-                    });
-                }
-            }
+        Mainloop.timeout_add(50, () => {
+            if (!icon.proxy) return GLib.SOURCE_REMOVE;
+            icon.proxy.call_button_press(info.x, info.y, 3, info.time, info.o, null, null);
+            Mainloop.timeout_add(60, () => {
+                if (icon.proxy) icon.proxy.call_button_release(info.x, info.y, 3, info.time + 60, info.o, null, null);
+                return GLib.SOURCE_REMOVE;
+            });
+            return GLib.SOURCE_REMOVE;
         });
+
+        this._regrabId = Mainloop.timeout_add(500, () => {
+            if (!this.menu || !this.menu.isOpen || this._modalActive) {
+                this._regrabId = 0;
+                return GLib.SOURCE_REMOVE;
+            }
+            if (Main.pushModal(this.menu.actor)) {
+                this._modalActive = true;
+                this._regrabId = 0;
+                return GLib.SOURCE_REMOVE;
+            }
+            return GLib.SOURCE_CONTINUE;
+        });
+    }
+
+    _cancelRegrab() {
+        if (this._regrabId) {
+            Mainloop.source_remove(this._regrabId);
+            this._regrabId = 0;
+        }
     }
 
     _setupOutsideClickHandler() {
         this._removeOutsideClickHandler();
 
-        let initialFocus = global.display.focus_window;
+        // Modal grab while the popup is open: pointer clicks on other apps'
+        // windows are routed to our stage, so a click outside can be detected
+        // even when the clicked window already had focus (no focus change).
+        this._modalActive = Main.pushModal(this.menu.actor);
 
         this._stageEventId = global.stage.connect('captured-event', (actor, event) => {
             let type = event.type();
@@ -959,6 +1013,7 @@ class Win11TrayApplet extends Applet.Applet {
                         return Clutter.EVENT_PROPAGATE;
                     }
                     this.menu.close();
+                    return Clutter.EVENT_STOP;
                 }
             } else if (type === Clutter.EventType.KEY_PRESS) {
                 if (event.get_key_symbol() === Clutter.KEY_Escape) {
@@ -970,26 +1025,21 @@ class Win11TrayApplet extends Applet.Applet {
             }
             return Clutter.EVENT_PROPAGATE;
         });
+    }
 
-        this._focusWindowId = global.display.connect('notify::focus-window', () => {
-            let currentFocus = global.display.focus_window;
-            if (currentFocus && currentFocus !== initialFocus) {
-                if (this.menu && this.menu.isOpen) {
-                    this.menu.close();
-                }
-            }
-        });
+    // Release the modal grab so an app's own context menu (separate window,
+    // its own pointer grab) can receive input.
+    _releaseModal() {
+        if (this._modalActive) {
+            this._modalActive = false;
+            try {
+                Main.popModal(this.menu.actor);
+            } catch (e) {}
+        }
     }
 
     _removeOutsideClickHandler() {
-        if (this._contextPropId > 0 && this._activeContextIcon && this._activeContextIcon.proxy) {
-            try {
-                this._activeContextIcon.proxy.disconnect(this._contextPropId);
-            } catch (e) {}
-            this._contextPropId = 0;
-            this._activeContextIcon = null;
-        }
-
+        this._cancelRegrab();
         if (this._stageEventId > 0) {
             try {
                 global.stage.disconnect(this._stageEventId);
@@ -997,12 +1047,7 @@ class Win11TrayApplet extends Applet.Applet {
             this._stageEventId = 0;
         }
 
-        if (this._focusWindowId > 0) {
-            try {
-                global.display.disconnect(this._focusWindowId);
-            } catch (e) {}
-            this._focusWindowId = 0;
-        }
+        this._releaseModal();
     }
 
     isIconPinned(icon) {
@@ -1013,7 +1058,9 @@ class Win11TrayApplet extends Applet.Applet {
     pinIcon(icon) {
         let id = getIconIdentifier(icon.proxy);
         if (!this.pinnedIconsList.includes(id)) {
-            this.pinnedIconsList = [...this.pinnedIconsList, id];
+            // append after the order currently shown on the taskbar
+            let shown = this._sortedZoneIcons(true).map(i => getIconIdentifier(i.proxy));
+            this.pinnedIconsList = [...shown.filter(x => x !== id), id];
             this.settings.setValue("pinned-icons", this.pinnedIconsList);
         }
         if (this.unpinnedOrderList.includes(id)) {
@@ -1031,7 +1078,8 @@ class Win11TrayApplet extends Applet.Applet {
             this.settings.setValue("pinned-icons", this.pinnedIconsList);
         }
         if (!this.unpinnedOrderList.includes(id)) {
-            this.unpinnedOrderList = [...this.unpinnedOrderList, id];
+            let shown = this._sortedZoneIcons(false).map(i => getIconIdentifier(i.proxy));
+            this.unpinnedOrderList = [...shown.filter(x => x !== id), id];
             this.settings.setValue("unpinned-order", this.unpinnedOrderList);
         }
         icon.setTooltipText(icon.rawTooltipText);
@@ -1093,8 +1141,23 @@ class Win11TrayApplet extends Applet.Applet {
         }
     }
 
+    // With nothing pinned the taskbar box is zero-sized, so there is nowhere to
+    // drop an icon to move it out of the popup. Give it a drop zone while a drag
+    // is in progress.
+    _setPanelDropZone(active) {
+        if (!this.pinnedIconsBox) return;
+        if (active && this.pinnedIconsBox.get_n_children() === 0) {
+            let size = Math.round(40 * global.ui_scale);
+            let vertical = (this.orientation === St.Side.LEFT || this.orientation === St.Side.RIGHT);
+            this.pinnedIconsBox.set_style(vertical ? `min-height: ${size}px;` : `min-width: ${size}px;`);
+        } else {
+            this.pinnedIconsBox.set_style(null);
+        }
+    }
+
     setDraggingState(isDragging) {
         this._isDragging = isDragging;
+        this._setPanelDropZone(isDragging);
         if (isDragging) {
             this.actor.add_style_class_name('win11-tray-dragging');
             this.mainContainer.add_style_class_name('win11-tray-dragging');
@@ -1140,43 +1203,35 @@ class Win11TrayApplet extends Applet.Applet {
 
         let draggedId = getIconIdentifier(draggedIcon.proxy);
         let targetId = getIconIdentifier(targetIcon.proxy);
-
         let targetIsPinned = this.isIconPinned(targetIcon);
         let draggedIsPinned = this.isIconPinned(draggedIcon);
 
-        if (targetIsPinned) {
-            // Target is on the taskbar panel
-            let pinnedList = this.pinnedIconsList.filter(id => id !== draggedId);
-            let targetIdx = pinnedList.indexOf(targetId);
-            if (targetIdx !== -1) {
-                let insertIdx = isAfter ? targetIdx + 1 : targetIdx;
-                pinnedList.splice(insertIdx, 0, draggedId);
-            } else {
-                pinnedList.push(draggedId);
-            }
-            this.pinnedIconsList = pinnedList;
-            this.settings.setValue("pinned-icons", this.pinnedIconsList);
+        // Start from the order currently on screen, not from the saved list:
+        // icons never moved before are not in the saved list, so inserting next
+        // to one of them would otherwise put the dragged icon at the wrong spot.
+        let ids = this._sortedZoneIcons(targetIsPinned)
+            .map(i => getIconIdentifier(i.proxy))
+            .filter(id => id !== draggedId);
+        let targetIdx = ids.indexOf(targetId);
+        if (targetIdx !== -1) {
+            ids.splice(isAfter ? targetIdx + 1 : targetIdx, 0, draggedId);
+        } else {
+            ids.push(draggedId);
+        }
 
+        if (targetIsPinned) {
+            this.pinnedIconsList = ids;
+            this.settings.setValue("pinned-icons", this.pinnedIconsList);
             if (this.unpinnedOrderList.includes(draggedId)) {
                 this.unpinnedOrderList = this.unpinnedOrderList.filter(id => id !== draggedId);
                 this.settings.setValue("unpinned-order", this.unpinnedOrderList);
             }
         } else {
-            // Target is in the popup menu
             if (draggedIsPinned) {
                 this.pinnedIconsList = this.pinnedIconsList.filter(id => id !== draggedId);
                 this.settings.setValue("pinned-icons", this.pinnedIconsList);
             }
-
-            let unpinnedList = this.unpinnedOrderList.filter(id => id !== draggedId);
-            let targetIdx = unpinnedList.indexOf(targetId);
-            if (targetIdx !== -1) {
-                let insertIdx = isAfter ? targetIdx + 1 : targetIdx;
-                unpinnedList.splice(insertIdx, 0, draggedId);
-            } else {
-                unpinnedList.push(draggedId);
-            }
-            this.unpinnedOrderList = unpinnedList;
+            this.unpinnedOrderList = ids;
             this.settings.setValue("unpinned-order", this.unpinnedOrderList);
         }
 
@@ -1321,6 +1376,26 @@ class Win11TrayApplet extends Applet.Applet {
         this._updateChevronVisibility();
     }
 
+    // Icons of one zone (taskbar or popup) in the order they are displayed:
+    // saved order first, the rest by the default sort.
+    _sortedZoneIcons(pinned) {
+        let list = pinned ? this.pinnedIconsList : this.unpinnedOrderList;
+        let icons = [];
+        for (let key in this.statusIcons) {
+            let icon = this.statusIcons[key];
+            if (this.isIconPinned(icon) === pinned) icons.push(icon);
+        }
+        icons.sort((a, b) => {
+            let idxA = list.indexOf(getIconIdentifier(a.proxy));
+            let idxB = list.indexOf(getIconIdentifier(b.proxy));
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return this._sortFunc(a, b);
+        });
+        return icons;
+    }
+
     _relayoutPinnedIcons() {
         let pinned = [];
         for (let key in this.statusIcons) {
@@ -1390,7 +1465,9 @@ class Win11TrayApplet extends Applet.Applet {
             row.destroy();
         }
 
-        if (unpinned.length === 0) {
+        // Icons the app reports as not visible stay parented in the grid but must
+        // not take a column slot, or rows end up shorter than the configured count.
+        if (!unpinned.some(i => i.proxy.visible)) {
             let emptyLabel = new St.Label({
                 text: _("Nenhum ícone oculto"),
                 style_class: 'win11-tray-empty'
@@ -1399,18 +1476,21 @@ class Win11TrayApplet extends Applet.Applet {
             return;
         }
 
-        let numCols = Math.max(3, Math.min(8, this.columns || 5));
+        let numCols = Math.max(2, Math.min(10, this.columns || 5));
         let currentRow = null;
 
+        let shown = 0;
         for (let i = 0; i < unpinned.length; i++) {
-            if (i % numCols === 0) {
+            let icon = unpinned[i];
+            let isShown = !!icon.proxy.visible;
+            if (!currentRow || (isShown && shown > 0 && shown % numCols === 0)) {
                 currentRow = new St.BoxLayout({
                     vertical: false,
                     style_class: 'win11-tray-row'
                 });
                 this.menu.gridBox.add_actor(currentRow);
             }
-            let icon = unpinned[i];
+            if (isShown) shown++;
             icon.setInPopup(true);
             if (icon.actor.get_parent()) {
                 icon.actor.get_parent().remove_actor(icon.actor);
