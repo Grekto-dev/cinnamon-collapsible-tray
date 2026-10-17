@@ -18,7 +18,7 @@ const DND = imports.ui.dnd;
 const Util = imports.misc.util;
 const Gettext = imports.gettext;
 
-const UUID = "win11-tray@cinnamon";
+const UUID = "cinnamon-collapsible-tray@cinnamon";
 Gettext.bindtextdomain(UUID, GLib.get_home_dir() + "/.local/share/locale");
 
 function _(str) {
@@ -143,7 +143,7 @@ class XAppStatusIcon {
         this.rawTooltipText = "";
 
         this.actor = new St.Button({
-            style_class: "win11-tray-item win11-tray-panel-item",
+            style_class: "collapsible-tray-item collapsible-tray-panel-item",
             reactive: !global.settings.get_boolean('panel-edit-mode'),
             track_hover: true,
             can_focus: true,
@@ -310,15 +310,15 @@ class XAppStatusIcon {
         this.isInPopup = isInPopup;
 
         if (this.isInPopup) {
-            this.actor.remove_style_class_name("win11-tray-panel-item");
-            this.actor.add_style_class_name("win11-tray-popup-item");
+            this.actor.remove_style_class_name("collapsible-tray-panel-item");
+            this.actor.add_style_class_name("collapsible-tray-popup-item");
             if (this.box.contains(this.label)) {
                 this.box.remove_actor(this.label);
             }
             this.label.visible = false;
         } else {
-            this.actor.remove_style_class_name("win11-tray-popup-item");
-            this.actor.add_style_class_name("win11-tray-panel-item");
+            this.actor.remove_style_class_name("collapsible-tray-popup-item");
+            this.actor.add_style_class_name("collapsible-tray-panel-item");
             if (this.show_label && !this.box.contains(this.label)) {
                 this.box.add_actor(this.label);
             }
@@ -623,17 +623,17 @@ class Win11TrayMenu extends Applet.AppletPopupMenu {
         super(applet, orientation);
         this.applet = applet;
         this.sourceActor = applet.chevronButton;
-        this.setCustomStyleClass('win11-tray-popup');
+        this.setCustomStyleClass('collapsible-tray-popup');
 
         this.mainBox = new St.BoxLayout({
             vertical: true,
-            style_class: 'win11-tray-popup-content'
+            style_class: 'collapsible-tray-popup-content'
         });
         this.box.add_actor(this.mainBox);
 
         this.gridBox = new St.BoxLayout({
             vertical: true,
-            style_class: 'win11-tray-grid'
+            style_class: 'collapsible-tray-grid'
         });
         this.mainBox.add_actor(this.gridBox);
 
@@ -717,20 +717,20 @@ class Win11TrayApplet extends Applet.Applet {
 
         // Main Layout Container
         this.mainContainer = new St.BoxLayout({
-            style_class: 'win11-tray-main-container',
+            style_class: 'collapsible-tray-main-container',
             vertical: isVertical
         });
         this.actor.add_actor(this.mainContainer);
 
         // Chevron Button (Toggles Windows 11 style popup)
         this.chevronButton = new St.Button({
-            style_class: 'applet-box win11-tray-chevron',
+            style_class: 'applet-box collapsible-tray-chevron',
             reactive: true,
             can_focus: true,
             track_hover: true
         });
         this.chevronIcon = new St.Icon({
-            style_class: 'win11-tray-chevron-icon',
+            style_class: 'collapsible-tray-chevron-icon',
             icon_size: 14,
             icon_type: St.IconType.SYMBOLIC
         });
@@ -781,7 +781,7 @@ class Win11TrayApplet extends Applet.Applet {
 
         // Pinned Icons Container (shown on the taskbar panel)
         this.pinnedIconsBox = new St.BoxLayout({
-            style_class: 'win11-tray-panel-box',
+            style_class: 'collapsible-tray-panel-box',
             vertical: isVertical
         });
 
@@ -1094,7 +1094,7 @@ class Win11TrayApplet extends Applet.Applet {
 
         if (!this.indicatorBar) {
             this.indicatorBar = new St.Bin({
-                style_class: 'win11-tray-drop-indicator',
+                style_class: 'collapsible-tray-drop-indicator',
                 reactive: false
             });
             Main.uiGroup.add_actor(this.indicatorBar);
@@ -1159,39 +1159,39 @@ class Win11TrayApplet extends Applet.Applet {
         this._isDragging = isDragging;
         this._setPanelDropZone(isDragging);
         if (isDragging) {
-            this.actor.add_style_class_name('win11-tray-dragging');
-            this.mainContainer.add_style_class_name('win11-tray-dragging');
+            this.actor.add_style_class_name('collapsible-tray-dragging');
+            this.mainContainer.add_style_class_name('collapsible-tray-dragging');
             if (this.menu && this.menu.actor) {
-                this.menu.actor.add_style_class_name('win11-tray-dragging');
+                this.menu.actor.add_style_class_name('collapsible-tray-dragging');
             }
             if (this.menu && this.menu.mainBox) {
-                this.menu.mainBox.add_style_class_name('win11-tray-dragging');
+                this.menu.mainBox.add_style_class_name('collapsible-tray-dragging');
             }
             if (this.menu && this.menu.gridBox) {
-                this.menu.gridBox.add_style_class_name('win11-tray-dragging');
+                this.menu.gridBox.add_style_class_name('collapsible-tray-dragging');
             }
             for (let key in this.statusIcons) {
                 let icon = this.statusIcons[key];
                 icon.actor.track_hover = false;
                 icon.actor.hover = false;
-                icon.actor.add_style_class_name('win11-tray-dragging');
+                icon.actor.add_style_class_name('collapsible-tray-dragging');
             }
         } else {
-            this.actor.remove_style_class_name('win11-tray-dragging');
-            this.mainContainer.remove_style_class_name('win11-tray-dragging');
+            this.actor.remove_style_class_name('collapsible-tray-dragging');
+            this.mainContainer.remove_style_class_name('collapsible-tray-dragging');
             if (this.menu && this.menu.actor) {
-                this.menu.actor.remove_style_class_name('win11-tray-dragging');
+                this.menu.actor.remove_style_class_name('collapsible-tray-dragging');
             }
             if (this.menu && this.menu.mainBox) {
-                this.menu.mainBox.remove_style_class_name('win11-tray-dragging');
+                this.menu.mainBox.remove_style_class_name('collapsible-tray-dragging');
             }
             if (this.menu && this.menu.gridBox) {
-                this.menu.gridBox.remove_style_class_name('win11-tray-dragging');
+                this.menu.gridBox.remove_style_class_name('collapsible-tray-dragging');
             }
             let panelEditMode = global.settings.get_boolean('panel-edit-mode');
             for (let key in this.statusIcons) {
                 let icon = this.statusIcons[key];
-                icon.actor.remove_style_class_name('win11-tray-dragging');
+                icon.actor.remove_style_class_name('collapsible-tray-dragging');
                 icon.actor.track_hover = !panelEditMode;
                 icon.actor.sync_hover();
             }
@@ -1273,12 +1273,12 @@ class Win11TrayApplet extends Applet.Applet {
         if (this.statusIcons[key]) return;
 
         if (this.shouldIgnoreStatusIcon(icon_proxy)) {
-            global.log(`win11-tray: Hiding XAppStatusIcon (applet exists): ${icon_proxy.name}`);
+            global.log(`collapsible-tray: Hiding XAppStatusIcon (applet exists): ${icon_proxy.name}`);
             this.ignoreStatusIcon(icon_proxy);
             return;
         }
 
-        global.log(`win11-tray: Adding XAppStatusIcon: ${icon_proxy.name} (${key})`);
+        global.log(`collapsible-tray: Adding XAppStatusIcon: ${icon_proxy.name} (${key})`);
         let statusIcon = new XAppStatusIcon(this, icon_proxy);
         this.statusIcons[key] = statusIcon;
 
@@ -1302,7 +1302,7 @@ class Win11TrayApplet extends Applet.Applet {
             return;
         }
 
-        global.log(`win11-tray: Removing XAppStatusIcon: ${icon_proxy.name} (${key})`);
+        global.log(`collapsible-tray: Removing XAppStatusIcon: ${icon_proxy.name} (${key})`);
         let statusIcon = this.statusIcons[key];
         if (statusIcon.actor.get_parent()) {
             statusIcon.actor.get_parent().remove_actor(statusIcon.actor);
@@ -1470,7 +1470,7 @@ class Win11TrayApplet extends Applet.Applet {
         if (!unpinned.some(i => i.proxy.visible)) {
             let emptyLabel = new St.Label({
                 text: _("Nenhum ícone oculto"),
-                style_class: 'win11-tray-empty'
+                style_class: 'collapsible-tray-empty'
             });
             this.menu.gridBox.add_actor(emptyLabel);
             return;
@@ -1486,7 +1486,7 @@ class Win11TrayApplet extends Applet.Applet {
             if (!currentRow || (isShown && shown > 0 && shown % numCols === 0)) {
                 currentRow = new St.BoxLayout({
                     vertical: false,
-                    style_class: 'win11-tray-row'
+                    style_class: 'collapsible-tray-row'
                 });
                 this.menu.gridBox.add_actor(currentRow);
             }

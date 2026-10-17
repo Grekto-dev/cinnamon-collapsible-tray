@@ -1,45 +1,45 @@
 /* =========================================================================
- * Windows 11 System Tray Applet for Cinnamon (win11-tray@cinnamon)
+ * Cinnamon Collapsible Tray Applet for Cinnamon (cinnamon-collapsible-tray@cinnamon)
  * Replicates the Windows 11 system tray overflow popup and chevron button
  * ========================================================================= */
 
 /* Applet Main Container on Panel */
-.win11-tray-main-container {
+.collapsible-tray-main-container {
     padding: 0;
     margin: 0;
     spacing: 1px;
 }
 
 /* Panel Chevron Button */
-.win11-tray-chevron {
+.collapsible-tray-chevron {
     padding: 0 4px !important;
     margin: 0 1px !important;
     border-radius: 4px;
     transition-duration: 120ms;
 }
 
-.win11-tray-chevron:hover {
+.collapsible-tray-chevron:hover {
     background-color: rgba(255, 255, 255, 0.08);
 }
 
-.win11-tray-chevron:active,
-.win11-tray-chevron:checked,
-.win11-tray-chevron.active {
+.collapsible-tray-chevron:active,
+.collapsible-tray-chevron:checked,
+.collapsible-tray-chevron.active {
     background-color: rgba(255, 255, 255, 0.14);
 }
 
-.win11-tray-chevron-icon {
+.collapsible-tray-chevron-icon {
     icon-size: 14px;
 }
 
 /* Pinned Items on Taskbar Panel */
-.win11-tray-panel-box {
+.collapsible-tray-panel-box {
     spacing: 1px !important;
     padding: 0 !important;
     margin: 0 !important;
 }
 
-.win11-tray-panel-item {
+.collapsible-tray-panel-item {
     padding-left: 2px !important;
     padding-right: 2px !important;
     padding-top: 0 !important;
@@ -50,13 +50,13 @@
     transition-duration: 120ms;
 }
 
-.win11-tray-panel-item:hover {
+.collapsible-tray-panel-item:hover {
     background-color: rgba(255, 255, 255, 0.08);
 }
 
 /* Windows 11 Overflow Popup Container */
-.menu.win11-tray-popup,
-.win11-tray-popup {
+.menu.collapsible-tray-popup,
+.collapsible-tray-popup {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -65,8 +65,8 @@
     min-width: 0 !important;
 }
 
-.menu.win11-tray-popup .popup-menu-content,
-.win11-tray-popup .popup-menu-content {
+.menu.collapsible-tray-popup .popup-menu-content,
+.collapsible-tray-popup .popup-menu-content {
     background-color: rgba(32, 32, 35, 0.96) !important;
     border: 1px solid rgba(255, 255, 255, 0.12) !important;
     border-radius: 10px !important;
@@ -75,27 +75,27 @@
     margin: 0 !important;
 }
 
-.win11-tray-popup-content {
+.collapsible-tray-popup-content {
     spacing: 2px;
     padding: 0;
     margin: 0;
 }
 
 /* Grid Layout */
-.win11-tray-grid {
+.collapsible-tray-grid {
     spacing: 2px;
     padding: 0;
     margin: 0;
 }
 
-.win11-tray-row {
+.collapsible-tray-row {
     spacing: 2px;
     padding: 0;
     margin: 0;
 }
 
 /* Grid Icon Cells - Measured from Windows 11 recordings: 40px x 40px buttons */
-.win11-tray-popup-item {
+.collapsible-tray-popup-item {
     min-width: 40px !important;
     max-width: 40px !important;
     min-height: 40px !important;
@@ -106,22 +106,22 @@
     transition-duration: 100ms;
 }
 
-.win11-tray-popup-item:hover {
+.collapsible-tray-popup-item:hover {
     background-color: rgba(255, 255, 255, 0.10);
 }
 
-.win11-tray-popup-item:active {
+.collapsible-tray-popup-item:active {
     background-color: rgba(255, 255, 255, 0.18);
 }
 
-.win11-tray-empty {
+.collapsible-tray-empty {
     font-size: 8.5pt;
     color: rgba(255, 255, 255, 0.6);
     padding: 8px 12px;
     text-align: center;
 }
 
-.win11-tray-drag-actor {
+.collapsible-tray-drag-actor {
     background-color: rgba(40, 40, 45, 0.92);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 6px;
@@ -129,25 +129,25 @@
 }
 
 /* Windows 11 Drop Indicator Bar: Slender rounded capsule */
-.win11-tray-drop-indicator {
+.collapsible-tray-drop-indicator {
     background-color: #ffffff !important;
     border-radius: 1px !important;
     box-shadow: 0 0 3px rgba(255, 255, 255, 0.8) !important;
 }
 
 /* Suppress all button hover/active styles during Drag and Drop */
-.win11-tray-dragging,
-.win11-tray-dragging .win11-tray-popup-item,
-.win11-tray-dragging .win11-tray-popup-item:hover,
-.win11-tray-dragging .win11-tray-popup-item:active,
-.win11-tray-dragging .win11-tray-panel-item,
-.win11-tray-dragging .win11-tray-panel-item:hover,
-.win11-tray-dragging .win11-tray-panel-item:active,
-.win11-tray-dragging .win11-tray-chevron,
-.win11-tray-dragging .win11-tray-chevron:hover,
-.win11-tray-dragging .win11-tray-chevron:active,
-.win11-tray-item.win11-tray-dragging,
-.win11-tray-item.win11-tray-dragging:hover,
-.win11-tray-item.win11-tray-dragging:active {
+.collapsible-tray-dragging,
+.collapsible-tray-dragging .collapsible-tray-popup-item,
+.collapsible-tray-dragging .collapsible-tray-popup-item:hover,
+.collapsible-tray-dragging .collapsible-tray-popup-item:active,
+.collapsible-tray-dragging .collapsible-tray-panel-item,
+.collapsible-tray-dragging .collapsible-tray-panel-item:hover,
+.collapsible-tray-dragging .collapsible-tray-panel-item:active,
+.collapsible-tray-dragging .collapsible-tray-chevron,
+.collapsible-tray-dragging .collapsible-tray-chevron:hover,
+.collapsible-tray-dragging .collapsible-tray-chevron:active,
+.collapsible-tray-item.collapsible-tray-dragging,
+.collapsible-tray-item.collapsible-tray-dragging:hover,
+.collapsible-tray-item.collapsible-tray-dragging:active {
     background-color: transparent !important;
 }

@@ -1,10 +1,10 @@
 {
-    "uuid": "win11-tray@cinnamon",
-    "name": "Windows 11 System Tray",
+    "uuid": "cinnamon-collapsible-tray@cinnamon",
+    "name": "Cinnamon Collapsible Tray",
     "description": "Windows 11 style collapsible system tray with overflow popup menu for XApp Status icons",
     "icon": "pan-up-symbolic",
     "author": "Grekto-dev",
-    "website": "https://github.com/Grekto-dev/win11-tray",
+    "website": "https://github.com/Grekto-dev/cinnamon-collapsible-tray",
     "max-instances": 1,
     "multiversion": false
 }

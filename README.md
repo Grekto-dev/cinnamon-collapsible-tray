@@ -1,4 +1,4 @@
-# Windows 11 System Tray Applet for Cinnamon (`win11-tray@cinnamon`)
+# Cinnamon Collapsible Tray (`cinnamon-collapsible-tray@cinnamon`)
 
 A modern system tray applet for the **Cinnamon Desktop Environment** (Linux Mint and other distributions) that faithfully recreates the **Windows 11 collapsible overflow tray menu**, bringing native chevron expand/collapse functionality and taskbar pin management to modern **StatusNotifierItem / XApp Status** background applications.
 
@@ -41,13 +41,13 @@ A modern system tray applet for the **Cinnamon Desktop Environment** (Linux Mint
 Run the following command in your terminal:
 
 ```bash
-git clone https://github.com/Grekto-dev/win11-tray.git ~/.local/share/cinnamon/applets/win11-tray@cinnamon
+git clone https://github.com/Grekto-dev/cinnamon-collapsible-tray.git ~/.local/share/cinnamon/applets/cinnamon-collapsible-tray@cinnamon
 ```
 
 ### Option 2: Enabling the Applet
 
 1. Right-click on your Cinnamon panel and choose **Miniaplicativos** (*Applets*).
-2. Look for **Windows 11 System Tray** under the "Manage" tab.
+2. Look for **Cinnamon Collapsible Tray** under the "Manage" tab.
 3. Click the `+` button to add it to your panel.
 4. (Recommended) Remove the old `xapp-status@cinnamon.org` applet from your panel to avoid showing duplicate icons.
 
